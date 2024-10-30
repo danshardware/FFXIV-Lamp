@@ -1,0 +1,23 @@
+# Arduino Sketch build files
+*.ino.*
+*.cpp.*
+*.h.*
+*.elf
+*.bin
+*.hex
+*.eep
+*.map
+*.sym
+*.lss
+
+# Arduino libraries
+libraries/
+
+# Build folders
+build/
+
+# MacOS specific files
+.DS_Store
+
+# Windows specific files
+Thumbs.db
