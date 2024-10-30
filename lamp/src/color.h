@@ -95,14 +95,7 @@ inline uint8_t qadd8(uint8_t i, uint8_t j) {
 
 inline uint8_t qsub8(uint8_t i, uint8_t j) {
     int t = i - j;
-    // Serial.print(F("qsub8: "));
-    // Serial.print(i);
-    // Serial.print(F(" - "));
-    // Serial.print(j);
-    // Serial.print(F(" = "));
-    // Serial.println(t);
     if (t < 0){
-        // Serial.println(F("qsub8: returning 0"));
         return 0;
     }
     return t;

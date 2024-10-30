@@ -4,13 +4,14 @@
 #include <Adafruit_NeoPixel.h>
 #include "color.h"
 
-#define PIXEL_PIN 11
-#define N_LEDS 60
-#define PIXELS_PER_LEVEL 7
+#define PIXEL_PIN        11
+#define N_LEDS           60
+#define PIXELS_PER_LEVEL 8
 
 // A few operating parameters
-#define UPDATE_MS 40
-#define BRIGHTNESS 16
+#define UPDATE_MS  40          /* how many milliseconds to wait before doing another update. */
+#define BRIGHTNESS 16          /* how bright to make this overall 0-255*/
+#define MINIMUM_BASE_HEAT 0x10 /* The leasat amount of light at the base */
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(N_LEDS, PIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
@@ -24,7 +25,7 @@ void fade_all_leds()
   {
     // heat[i] = (heat[i] >> 1) + (heat[i] >> 2);
     // heat[i] = heat[i] - (heat[i] >> 2);
-    heat[i] = qsub8(heat[i], 3);
+    heat[i] = qsub8(heat[i], 1);
   }
 }
 
@@ -32,7 +33,7 @@ void fade_all_leds()
 void add_random_heat()
 {
   int led = random(PIXELS_PER_LEVEL * 2);
-  heat[led] = qadd8(heat[led], random8(0x20, 0x90));
+  heat[led] = qadd8(heat[led], random8(0x20, 0xE0));
 }
 
 // Apply a blur effect to the LEDs, and respect the rows
@@ -45,7 +46,6 @@ void smear()
     if (i % PIXELS_PER_LEVEL == 0)
     {
       // Beginning of a row, so blur with the next and pixel at end of the row
-      // new_heat[i] = (uint16_t)(heat[i] + heat[(i + 1) % N_LEDS] + heat[(i + PIXELS_PER_LEVEL - 1) % N_LEDS]) / 3;
       uint16_t sum = heat[i] + heat[i] + heat[(i + 1) % N_LEDS] +  heat[(i + PIXELS_PER_LEVEL - 1) % N_LEDS];
       sum = sum >> 2;
       new_heat[i] = sum;
@@ -53,7 +53,6 @@ void smear()
     else if (i % PIXELS_PER_LEVEL == PIXELS_PER_LEVEL - 1)
     {
       // end of a row, so blur with the previous and pixel at the beginning of the row
-      // new_heat[i] = (uint8_t)((uint16_t)(heat[i] + heat[(i + N_LEDS - 1) % N_LEDS] + heat[(i - PIXELS_PER_LEVEL + 1) % N_LEDS]) / 3);
       uint16_t sum = heat[i] + heat[i] + heat[(i + N_LEDS - 1) % N_LEDS] +  heat[(i - PIXELS_PER_LEVEL + 1) % N_LEDS];
       sum = sum >> 2;
       new_heat[i] = sum;
@@ -76,22 +75,12 @@ void smear()
       // Serial.print(i);
       // Serial.print(F("]: "));
       // Serial.println(new_heat[i]); 
-
     }
     
   }
 
   for (int i = 0; i < N_LEDS; i++)
   {
-    // if (heat[i] != new_heat[i]){
-    //   Serial.print(F("heat["));
-    //   Serial.print(i);
-    //   Serial.print(F("]: "));
-    //   Serial.print(heat[i]);
-    //   Serial.print(F(" -> "));
-    //   Serial.println(new_heat[i]);
-
-    // }
     heat[i] = new_heat[i];
   }
 }
@@ -101,21 +90,21 @@ void ensure_bottom_heat()
 {
   for (int i = 0; i < PIXELS_PER_LEVEL * 2; i++)
   {
-    if (heat[i] < 0x20)
+    if (heat[i] < MINIMUM_BASE_HEAT)
     {
-      heat[i] = 0x20;
+      heat[i] = MINIMUM_BASE_HEAT;
     }
   }
 }
 
 // Make the heat rise
 void heat_rises(){
-  for (int i = PIXELS_PER_LEVEL * 2; i < N_LEDS; i++)
+  for (int i = PIXELS_PER_LEVEL; i < N_LEDS; i++)
   {
     // check the row under this one and the pixel to the left and right. Add heat from them
     uint16_t sum = heat[i] + heat[(i - PIXELS_PER_LEVEL) % N_LEDS] + heat[(i - PIXELS_PER_LEVEL + 1) % N_LEDS] + heat[(i - PIXELS_PER_LEVEL - 1) % N_LEDS];
-    sum = sum >> 3;
-    heat[i] = sum;
+    sum = sum >> 2;
+    heat[i] = qsub8(sum, 8);
   }
 }
 // Update all the LEDs
@@ -155,7 +144,6 @@ void loop()
         add_random_heat();
       }
       counter++;
-      smear();
       heat_rises();
       smear();
       ensure_bottom_heat();
