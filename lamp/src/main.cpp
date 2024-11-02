@@ -1,6 +1,7 @@
+#ifndef _MAIN_CPP_
+#define _MAIN_CPP_
 #include <Arduino.h>
 #include <avr/sleep.h>
-
 #include <Adafruit_NeoPixel.h>
 #include "color.h"
 
@@ -156,3 +157,4 @@ void loop()
     sleep_disable();
   }
 }
+#endif // _MAIN_CPP_
