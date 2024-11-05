@@ -8,6 +8,9 @@
 #define PIXEL_PIN        11
 #define N_LEDS           60
 #define PIXELS_PER_LEVEL 8
+#define INPUT_1          2
+#define INPUT_2          3
+#define HEAT_SPREAD      0x80 // how much to attenuate head rising. 0x80 is 50%
 
 // A few operating parameters
 #define UPDATE_MS  40          /* how many milliseconds to wait before doing another update. */
@@ -26,7 +29,7 @@ void fade_all_leds()
   {
     // heat[i] = (heat[i] >> 1) + (heat[i] >> 2);
     // heat[i] = heat[i] - (heat[i] >> 2);
-    heat[i] = qsub8(heat[i], 1);
+    heat[i] = qsub8(heat[i], 2);
   }
 }
 
@@ -34,7 +37,7 @@ void fade_all_leds()
 void add_random_heat()
 {
   int led = random(PIXELS_PER_LEVEL * 2);
-  heat[led] = qadd8(heat[led], random8(0x20, 0xE0));
+  heat[led] = qadd8(heat[led], random8(0x40, 0xE0));
 }
 
 // Apply a blur effect to the LEDs, and respect the rows
@@ -102,10 +105,15 @@ void ensure_bottom_heat()
 void heat_rises(){
   for (int i = PIXELS_PER_LEVEL; i < N_LEDS; i++)
   {
-    // check the row under this one and the pixel to the left and right. Add heat from them
-    uint16_t sum = heat[i] + heat[(i - PIXELS_PER_LEVEL) % N_LEDS] + heat[(i - PIXELS_PER_LEVEL + 1) % N_LEDS] + heat[(i - PIXELS_PER_LEVEL - 1) % N_LEDS];
+    // Add heat from the pixel under this one and half the pixel to the down-left and down-right.
+    // uint16_t sum = heat[i] + heat[(i - PIXELS_PER_LEVEL) % N_LEDS] + heat[(i - PIXELS_PER_LEVEL + 1) % N_LEDS] + heat[(i - PIXELS_PER_LEVEL - 1) % N_LEDS];
+    uint16_t sum = heat[i] + heat[i] + heat[(i - PIXELS_PER_LEVEL) % N_LEDS] + (heat[(i - PIXELS_PER_LEVEL + 1) % N_LEDS] >> 1) + (heat[(i - PIXELS_PER_LEVEL - 1) % N_LEDS] >> 1);
+    // divide by 4
     sum = sum >> 2;
-    heat[i] = qsub8(sum, 8);
+    sum *= HEAT_SPREAD;
+    sum = sum >> 8;
+    heat[i] = sum;
+    // heat[i] = qsub8(sum, 8);
   }
 }
 // Update all the LEDs
@@ -120,10 +128,19 @@ void update_leds()
   strip.show();
 }
 
+void zzz(){
+  set_sleep_mode(SLEEP_MODE_IDLE);
+  sleep_enable();
+  sleep_mode();
+  sleep_disable();
+}
+
 void setup()
 {
   memset(heat, 0, sizeof(heat));
   memset(heat, 0x20, PIXELS_PER_LEVEL * 2);
+  pinMode(INPUT_1, INPUT_PULLUP);
+  pinMode(INPUT_2, INPUT_PULLUP);
   strip.begin();
   strip.show();
   strip.setBrightness(BRIGHTNESS);
@@ -139,22 +156,41 @@ void loop()
     if (millis() - last_update_millis > UPDATE_MS)
     {
       last_update_millis = millis();
-      fade_all_leds();
-      if (counter > 5){
-        counter = 0;
+      // Flicker
+      if (digitalRead(INPUT_1) == LOW)
+      {
         add_random_heat();
+      
+        fade_all_leds();
+        if (counter > 5){
+          counter = 0;
+          add_random_heat();
+        }
+        counter++;
+        heat_rises();
+        smear();
+        ensure_bottom_heat();
+        update_leds();
+      } else if (digitalRead(INPUT_2) == LOW) {
+        // Steady
+        memset(heat, 0x80, sizeof(heat));
+        update_leds();
+        while (digitalRead(INPUT_2) == LOW)
+        {
+          zzz();
+        }
+      } else {
+        // Off, middle position, nothing shorted to ground
+        memset(heat, 0x00, sizeof(heat));
+        update_leds();
+        while (digitalRead(INPUT_2) == HIGH && digitalRead(INPUT_1) == HIGH)
+        {
+          zzz();
+        }
       }
-      counter++;
-      heat_rises();
-      smear();
-      ensure_bottom_heat();
-      update_leds();
     }
     // Put the Arduino to sleep to save power
-    set_sleep_mode(SLEEP_MODE_IDLE);
-    sleep_enable();
-    sleep_mode();
-    sleep_disable();
+    zzz();
   }
 }
 #endif // _MAIN_CPP_
